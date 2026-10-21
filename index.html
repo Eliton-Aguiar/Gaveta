@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Gaveta de Links | Mucuripe Logística</title>
+  <meta name="description" content="Central de acessos da Mucuripe Logística.">
+
+  <!-- PWA: Android / Chrome -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0B3D61">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+
+  <!-- PWA: iPhone / Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gaveta">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+  <style>
+    :root { --azul: #0B3D61; --azul-fundo: #06263D; --verde: #C2CB4C; }
+    html, body { margin: 0; height: 100%; background: var(--azul); overflow: hidden; }
+    /* O app ocupa a tela toda; a rolagem acontece só dentro do iframe (sem rolagem dupla). */
+    #app { position: fixed; inset: 0; width: 100%; height: 100dvh; border: 0; display: block; background: var(--azul-fundo); }
+
+    #carregando {
+      position: fixed; inset: 0; z-index: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+      padding: env(safe-area-inset-top, 0px) 24px env(safe-area-inset-bottom, 0px);
+      background: radial-gradient(circle at 50% 42%, rgba(28,117,187,.35), transparent 55%),
+                  linear-gradient(180deg, var(--azul) 0%, var(--azul-fundo) 100%);
+      color: #fff; font-family: Montserrat, "Segoe UI", system-ui, sans-serif; text-align: center;
+      transition: opacity .35s ease-out;
+    }
+    #carregando.saindo { opacity: 0; pointer-events: none; }
+    #carregando img { width: 96px; height: 96px; border-radius: 22px; }
+    #carregando strong { font-size: 18px; letter-spacing: .01em; }
+    #msg { font-size: 14px; color: #B9CCDB; min-height: 20px; }
+    .barra { width: 160px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.15); overflow: hidden; }
+    .barra i { display: block; width: 40%; height: 100%; border-radius: 4px; background: var(--verde); animation: ir 1.1s ease-in-out infinite; }
+    @keyframes ir { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+    #tentar { display: none; margin-top: 4px; padding: 12px 20px; min-height: 44px; border: 0; border-radius: 10px;
+      background: var(--verde); color: var(--azul); font: inherit; font-weight: 700; cursor: pointer; }
+    #carregando.erro #tentar { display: inline-block; }
+    #carregando.erro .barra { display: none; }
+    @media (prefers-reduced-motion: reduce) { .barra i { animation: none; width: 100%; } #carregando { transition: none; } }
+  </style>
+</head>
+<body>
+  <div id="carregando" role="status" aria-live="polite">
+    <img src="icon-192.png" alt="Mucuripe Logística">
+    <strong>Gaveta de Links</strong>
+    <div class="barra" aria-hidden="true"><i></i></div>
+    <span id="msg">Abrindo a gaveta…</span>
+    <button id="tentar" type="button">Tentar de novo</button>
+  </div>
+
+  <iframe id="app" title="Gaveta de Links" allow="clipboard-write"></iframe>
+
+  <script>
+    // ▼▼▼ COLE AQUI o endereço do web app (Implantar → Gerenciar implantações → URL do app da Web, termina em /exec)
+    const EXEC_URL = 'https://script.google.com/macros/s/AKfycbxio_emF5LhPUm9wRyFOekbzNE6utLx51MuVaZpP5PxMy2bkQIkxMDz3eMXWQ0NyQonYg/exec';
+    // ▲▲▲
+
+    const app = document.getElementById('app');
+    const tela = document.getElementById('carregando');
+    const msg = document.getElementById('msg');
+    let espera;
+
+    // Abre uma página do sistema dentro do app. "casca=1" avisa a gaveta que ela está no app instalado.
+    function abrir(page) {
+      if (EXEC_URL.indexOf('/exec') < 0) {
+        tela.classList.add('erro'); msg.textContent = 'Endereço do sistema não configurado no index.html (EXEC_URL).';
+        return;
+      }
+      tela.classList.remove('saindo', 'erro'); msg.textContent = 'Abrindo a gaveta…';
+      const url = new URL(EXEC_URL);
+      url.searchParams.set('casca', '1');
+      if (page === 'admin') url.searchParams.set('page', 'admin');
+      app.src = url.toString();
+      clearTimeout(espera);
+      espera = setTimeout(() => {
+        tela.classList.add('erro');
+        msg.textContent = 'Está demorando mais que o normal. Confira a internet.';
+      }, 20000);
+    }
+
+    app.addEventListener('load', () => {
+      if (!app.src) return;
+      clearTimeout(espera);
+      setTimeout(() => tela.classList.add('saindo'), 500); // tempo para a gaveta desenhar a tela
+    });
+    document.getElementById('tentar').addEventListener('click', () => abrir(paginaAtual));
+
+    // A gaveta pede para trocar de página (menu "Todos os links" / "Administração").
+    // Só aceita mensagens vindas do Apps Script.
+    window.addEventListener('message', e => {
+      let host = '';
+      try { host = new URL(e.origin).hostname; } catch (_) { return; }
+      if (!/\.googleusercontent\.com$/.test(host) && host !== 'script.google.com') return;
+      const d = e.data;
+      if (!d || d.gaveta !== 'nav' || (d.page !== 'home' && d.page !== 'admin')) return;
+      paginaAtual = d.page;
+      history.replaceState(null, '', d.page === 'admin' ? '?page=admin' : './');
+      abrir(d.page);
+    });
+
+    let paginaAtual = new URLSearchParams(location.search).get('page') === 'admin' ? 'admin' : 'home';
+    abrir(paginaAtual);
+
+    // Service worker: necessário para o Chrome oferecer "Instalar app".
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>
